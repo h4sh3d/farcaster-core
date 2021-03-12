@@ -1,5 +1,7 @@
 //! Cryptographic type definitions and primitives supported in Farcaster
 
+use lightning_encoding::{strategies, Strategy, LightningEncode};
+
 use crate::role::{Accordant, Arbitrating};
 
 pub enum Key<Ar, Ac, C>
@@ -49,20 +51,20 @@ where
 /// optimized further than ECDSA at the begining of Bitcoin.
 pub trait Crypto<C: CryptoEngine> {
     /// Private key type given the blockchain and the crypto engine
-    type PrivateKey;
+    type PrivateKey: LightningEncode;
 
     /// Public key type given the blockchain and the crypto engine
-    type PublicKey;
+    type PublicKey: LightningEncode;
 
     /// Commitment type given the blockchain and the crypto engine
-    type Commitment;
+    type Commitment: LightningEncode;
 
     /// Defines the signature format for the arbitrating blockchain
-    type Signature;
+    type Signature: LightningEncode;
 
     /// Defines the adaptor signature format for the arbitrating blockchain. Adaptor signature may
     /// have a different format from the signature depending on the cryptographic engine used.
-    type AdaptorSignature;
+    type AdaptorSignature: LightningEncode;
 }
 
 /// Defines a type of cryptography used inside arbitrating transactions to validate the
@@ -70,17 +72,20 @@ pub trait Crypto<C: CryptoEngine> {
 pub trait CryptoEngine {}
 
 /// Uses ECDSA signatures inside the scripting layer of the arbitrating blockchain.
+#[derive(Debug)]
 pub struct ECDSAScripts;
 
 impl CryptoEngine for ECDSAScripts {}
 
 /// Uses Schnorr signatures inside the scripting layer of the arbitrating blockchain.
+#[derive(Debug)]
 pub struct TrSchnorrScripts;
 
 impl CryptoEngine for TrSchnorrScripts {}
 
 /// Uses MuSig2 Schnorr off-chain multi-signature protocol to sign for a regular public key at the
 /// blockchain transaction layer.
+#[derive(Debug)]
 pub struct TrMuSig2;
 
 impl CryptoEngine for TrMuSig2 {}

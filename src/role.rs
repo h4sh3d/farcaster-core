@@ -1,5 +1,7 @@
 //! Roles during negotiation and swap phases, blockchain roles, and network definitions.
 
+use lightning_encoding::{LightningEncode};
+
 use crate::blockchain::Blockchain;
 
 /// Three network that need to be defined for every blockchains.
@@ -68,10 +70,10 @@ pub enum BlockchainRole {
 /// blockchain will use transaction to transfer the funds on both blockchains.
 pub trait Arbitrating: Blockchain {
     /// Defines the address format for the arbitrating blockchain
-    type Address;
+    type Address: LightningEncode;
 
     /// Defines the transaction format for the arbitrating blockchain
-    type Transaction;
+    type Transaction: LightningEncode;
 
     //// Defines the type of timelock used for the arbitrating transactions
     type Timelock: Copy;
@@ -81,11 +83,11 @@ pub trait Arbitrating: Blockchain {
 /// timelocks, it is the blockchain with the less requirements for an atomic swap.
 pub trait Accordant: Blockchain {
     /// Private key type for the blockchain
-    type PrivateKey;
+    type PrivateKey: LightningEncode;
 
     /// Public key type for the blockchain
-    type PublicKey;
+    type PublicKey: LightningEncode;
 
     /// Commitment type for the blockchain
-    type Commitment;
+    type Commitment: LightningEncode;
 }

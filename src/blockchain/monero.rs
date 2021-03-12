@@ -5,6 +5,8 @@ use monero::network::Network;
 use monero::util::key::PrivateKey;
 use monero::util::key::PublicKey;
 
+use lightning_encoding::{strategies, Strategy, LightningEncode};
+
 use crate::blockchain::Blockchain;
 use crate::role::Accordant;
 
@@ -37,8 +39,15 @@ impl Blockchain for Monero {
     }
 }
 
+#[derive(Debug, LightningEncode)]
+pub struct CommitmentHash(Hash);
+
+impl Strategy for CommitmentHash {
+    type Strategy = strategies::AsStrict;
+}
+
 impl Accordant for Monero {
     type PrivateKey = PrivateKey;
     type PublicKey = PublicKey;
-    type Commitment = Hash;
+    type Commitment = CommitmentHash;
 }
