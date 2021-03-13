@@ -1,5 +1,8 @@
 //! Farcaster Core library
 
+#[macro_use]
+extern crate inet2_derive;
+
 pub mod blockchain;
 pub mod bundle;
 pub mod crypto;
@@ -10,4 +13,4 @@ pub mod protocol;
 pub mod role;
 pub mod session;
 pub mod version;
-pub mod interactions;
+//pub mod interactions;

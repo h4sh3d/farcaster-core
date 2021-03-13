@@ -3,6 +3,8 @@
 use crate::crypto::{Crypto, CryptoEngine, Proof};
 use crate::role::{Accordant, Arbitrating};
 
+pub mod tlv;
+
 /// Trait for defining inter-daemon communication messages.
 pub trait ProtocolMessage {}
 
