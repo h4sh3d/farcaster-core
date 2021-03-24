@@ -6,11 +6,13 @@
 use std::fmt::Debug;
 use std::io;
 use std::ops::Range;
+use std::convert::TryInto;
 
 use crate::consensus::{self, Decodable, Encodable};
+use crate::negotiation::Asset;
 
 /// Base trait for defining a blockchain and its asset type.
-pub trait Blockchain: Copy + Debug + Encodable + Decodable {
+pub trait Blockchain: Copy + Debug + Encodable + Decodable + Into<Asset> {
     /// Type for the traded asset unit
     type AssetUnit: Copy + Debug + Encodable + Decodable;
 
@@ -108,6 +110,72 @@ where
                 Ok(FeeStrategy::Range(Range { start, end }))
             }
             _ => Err(consensus::Error::UnknownType),
+        }
+    }
+}
+
+/// A serialized fee strategy without interpretation of inner serialized data.
+#[derive(Debug)]
+pub enum SerializedFeeStrategy {
+    /// A fixed strategy with the exact amount to set
+    Fixed(Vec<u8>),
+    /// A range with a minimum and maximum (inclusive) possible fees
+    Range(Range<Vec<u8>>),
+}
+
+impl Encodable for SerializedFeeStrategy {
+    fn consensus_encode<W: io::Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        match self {
+            SerializedFeeStrategy::Fixed(t) => {
+                0x01u8.consensus_encode(writer)?;
+                Ok(t.consensus_encode(writer)? + 1)
+            }
+            SerializedFeeStrategy::Range(Range { start, end }) => {
+                0x02u8.consensus_encode(writer)?;
+                let len = start.consensus_encode(writer)?;
+                Ok(end.consensus_encode(writer)? + len + 1)
+            }
+        }
+    }
+}
+
+impl Decodable for SerializedFeeStrategy {
+    fn consensus_decode<D: io::Read>(d: &mut D) -> Result<Self, consensus::Error> {
+        match Decodable::consensus_decode(d)? {
+            0x01u8 => Ok(SerializedFeeStrategy::Fixed(Decodable::consensus_decode(d)?)),
+            0x02u8 => {
+                let start = Decodable::consensus_decode(d)?;
+                let end = Decodable::consensus_decode(d)?;
+                Ok(SerializedFeeStrategy::Range(Range { start, end }))
+            }
+            _ => Err(consensus::Error::UnknownType),
+        }
+    }
+}
+
+impl<T> TryInto<SerializedFeeStrategy> for FeeStrategy<T>
+where
+    T: Clone + PartialOrd + PartialEq + Encodable + Decodable,
+{
+    type Error = consensus::Error;
+
+    fn try_into(self) -> Result<SerializedFeeStrategy, consensus::Error> {
+        match self {
+            FeeStrategy::Fixed(t) => {
+                let mut writer = Vec::new();
+                t.consensus_encode(&mut writer)?;
+                Ok(SerializedFeeStrategy::Fixed(writer))
+            }
+            FeeStrategy::Range(Range { start, end }) => {
+                let mut s = Vec::new();
+                start.consensus_encode(&mut s)?;
+                let mut e = Vec::new();
+                end.consensus_encode(&mut e)?;
+                Ok(SerializedFeeStrategy::Range(Range {
+                    start: s,
+                    end: e,
+                }))
+            }
         }
     }
 }

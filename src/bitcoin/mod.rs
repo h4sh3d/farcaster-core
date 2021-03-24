@@ -16,6 +16,7 @@ use crate::blockchain::{
 use crate::consensus::{self, Decodable, Encodable};
 use crate::crypto::{Commitment, CrossGroupDLEQ, Curve, ECDSAScripts, Keys, Script, Signatures};
 use crate::monero::{Ed25519, Monero};
+use crate::negotiation::Asset;
 use crate::role::Arbitrating;
 
 pub mod transaction;
@@ -59,6 +60,12 @@ impl Blockchain for Bitcoin {
 
     fn to_u32(&self) -> u32 {
         0x80000000
+    }
+}
+
+impl Into<Asset> for Bitcoin {
+    fn into(self) -> Asset {
+        Asset::Bitcoin
     }
 }
 

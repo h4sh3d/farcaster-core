@@ -7,6 +7,7 @@ use monero::util::key::PublicKey;
 
 use crate::blockchain::Blockchain;
 use crate::crypto::{Commitment, Curve, Keys};
+use crate::negotiation::Asset;
 use crate::role::Accordant;
 
 #[derive(Debug, Clone, Copy)]
@@ -48,6 +49,12 @@ impl Blockchain for Monero {
 
     fn to_u32(&self) -> u32 {
         0x80000080
+    }
+}
+
+impl Into<Asset> for Monero {
+    fn into(self) -> Asset {
+        Asset::Monero
     }
 }
 

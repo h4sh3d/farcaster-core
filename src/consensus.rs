@@ -1,5 +1,5 @@
-//! Farcaster consensus encoding used to strictly encode and decode data such as public offers
-//! amoung swap participants.
+//! Farcaster consensus encoding used to strictly encode and decode data like public offers among
+//! participants.
 //!
 //! Implementation on blockchain foreign types must follow the strict consensus encoding from the
 //! blockchain itself, Farcaster core will then wrap the serialization and treat it as a lenght

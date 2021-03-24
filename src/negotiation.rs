@@ -4,9 +4,10 @@
 use thiserror::Error;
 
 use std::io;
+use std::convert::{TryFrom, TryInto};
 
-use crate::blockchain::{FeeStrategy, Network};
-use crate::consensus::{self, Decodable, Encodable};
+use crate::blockchain::{FeeStrategy, Network, SerializedFeeStrategy};
+use crate::consensus::{self, serialize, Decodable, Encodable};
 use crate::role::{Accordant, Arbitrating, SwapRole};
 
 /// First six magic bytes of a public offer
@@ -315,6 +316,117 @@ where
     }
 }
 
+// ? non exhaustive enum ?
+/// Define the list of tradable assets in Farcaster, if the asset is unknown in Farcaster the
+/// [Asset::Unknown] type is used with its SLIP44 u32 identifier.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum Asset {
+    /// Bitcoin on the Bitcoin network
+    Bitcoin,
+    /// Monero on the Monero network
+    Monero,
+    /// Unknown asset on an unknown network
+    Unknown(u32),
+}
+
+impl Encodable for Asset {
+    fn consensus_encode<W: io::Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        match self {
+            Asset::Bitcoin => 0x80000000u32.consensus_encode(writer),
+            Asset::Monero => 0x80000080u32.consensus_encode(writer),
+            Asset::Unknown(ident) => ident.consensus_encode(writer),
+        }
+    }
+}
+
+impl Decodable for Asset {
+    fn consensus_decode<D: io::Read>(d: &mut D) -> Result<Self, consensus::Error> {
+        match Decodable::consensus_decode(d)? {
+            0x80000000 => Ok(Asset::Bitcoin),
+            0x80000080 => Ok(Asset::Monero),
+            unknown => Ok(Asset::Unknown(unknown)),
+        }
+    }
+}
+
+/// A serialized offer is obtained through an [Offer] after internal generic types are serialized.
+///
+/// This allows to remove the generics and create parsers that recognizes all type of public
+/// offers.
+#[derive(Debug)]
+pub struct SerializedOffer {
+    /// Type of offer and network to use
+    pub network: Network,
+    /// The chosen arbitrating blockchain
+    pub arbitrating: Asset,
+    /// The chosen accordant blockchain
+    pub accordant: Asset,
+    /// Amount of arbitrating assets to exchanged
+    pub arbitrating_assets: Vec<u8>,
+    /// Amount of accordant assets to exchanged
+    pub accordant_assets: Vec<u8>,
+    /// The cancel timelock parameter of the arbitrating blockchain
+    pub cancel_timelock: Vec<u8>,
+    /// The punish timelock parameter of the arbitrating blockchain
+    pub punish_timelock: Vec<u8>,
+    /// The chosen fee strategy for the arbitrating transactions
+    pub fee_strategy: SerializedFeeStrategy,
+    /// The future maker swap role
+    pub maker_role: SwapRole,
+}
+
+impl<Ar, Ac> TryFrom<Offer<Ar, Ac>> for SerializedOffer
+where
+    Ar: Arbitrating,
+    Ac: Accordant,
+{
+    type Error = consensus::Error;
+
+    fn try_from(offer: Offer<Ar, Ac>) -> Result<SerializedOffer, consensus::Error> {
+        Ok(SerializedOffer {
+            network: offer.network,
+            arbitrating: offer.arbitrating.into(),
+            accordant: offer.accordant.into(),
+            arbitrating_assets: serialize(&offer.arbitrating_assets),
+            accordant_assets: serialize(&offer.arbitrating_assets),
+            cancel_timelock: serialize(&offer.arbitrating_assets),
+            punish_timelock: serialize(&offer.arbitrating_assets),
+            fee_strategy: offer.fee_strategy.try_into()?,
+            maker_role: offer.maker_role,
+        })
+    }
+}
+impl Encodable for SerializedOffer {
+    fn consensus_encode<W: io::Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut len = self.network.consensus_encode(writer)?;
+        len += self.arbitrating.consensus_encode(writer)?;
+        len += self.accordant.consensus_encode(writer)?;
+        len += self.arbitrating_assets.consensus_encode(writer)?;
+        len += self.accordant_assets.consensus_encode(writer)?;
+        len += self.cancel_timelock.consensus_encode(writer)?;
+        len += self.punish_timelock.consensus_encode(writer)?;
+        len += self.fee_strategy.consensus_encode(writer)?;
+        Ok(len + self.maker_role.consensus_encode(writer)?)
+    }
+}
+
+impl Decodable for SerializedOffer {
+    fn consensus_decode<D: io::Read>(d: &mut D) -> Result<Self, consensus::Error> {
+        Ok(SerializedOffer {
+            network: Decodable::consensus_decode(d)?,
+            arbitrating: Decodable::consensus_decode(d)?,
+            accordant: Decodable::consensus_decode(d)?,
+            arbitrating_assets: Decodable::consensus_decode(d)?,
+            accordant_assets: Decodable::consensus_decode(d)?,
+            cancel_timelock: Decodable::consensus_decode(d)?,
+            punish_timelock: Decodable::consensus_decode(d)?,
+            fee_strategy: Decodable::consensus_decode(d)?,
+            maker_role: Decodable::consensus_decode(d)?,
+        })
+    }
+}
+
+
 /// A public offer is shared across maker's prefered network to signal is willing of trading some
 /// assets at some conditions. The assets and condition are defined in the offer, the make peer
 /// connection information are happen to the offer the create a public offer.
@@ -362,7 +474,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Buy, Offer, PublicOffer, Sell};
+    use super::{Buy, Offer, PublicOffer, Sell, SerializedOffer};
     use crate::bitcoin::{Bitcoin, CSVTimelock, SatPerVByte};
     use crate::blockchain::{Blockchain, FeeStrategy, Network};
     use crate::consensus::{self, deserialize, serialize_hex};
@@ -439,4 +551,12 @@ mod tests {
             deserialize(&hex::decode(invalid).unwrap()[..]);
         assert!(pub_offer.is_err());
     }
+
+    #[test]
+    fn parse_serialized_offer() {
+        let hex = "020000008080000080080500000000000000080600000000000000040700000004080000000108090000000000000002";
+        dbg!(deserialize::<SerializedOffer>(&hex::decode(hex).unwrap()[..]));
+        assert!(false);
+    }
+
 }
